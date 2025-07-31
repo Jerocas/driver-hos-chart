@@ -125,47 +125,72 @@
     }
 
     function validate() {
-      let totalDrive = 0;
-      let totalWork = 0;
-      let lastOffDuty = 0;
-      let msg = '';
+  let totalDrive = 0;
+  let totalWork = 0;
+  let cumulativeDrive = 0;
+  let cumulativeWork = 0;
+  let lastOffDuty = 0;
+  let msg = '';
 
-      timeline.forEach(seg => {
-        if (seg.type === 'Driving') totalDrive += seg.duration;
-        if (seg.type === 'Driving' || seg.type === 'On Duty') totalWork += seg.duration;
-        if (seg.type === 'Off Duty') lastOffDuty = seg.duration;
-      });
+  const split = document.getElementById('splitSelect').value;
 
-      const split = document.getElementById('splitSelect').value;
-      if (split !== 'none') {
-        const [part1, part2] = split.split('-').map(Number);
-        if (lastOffDuty >= part1) {
-          document.getElementById('gainInfo').textContent = `Split break detected. Driver may gain up to ${part2} hrs after completing the second break.`;
-        } else {
-          document.getElementById('gainInfo').textContent = `Need ${part1} hrs break to activate split.`;
-        }
-      } else {
-        document.getElementById('gainInfo').textContent = '';
-      }
+  for (let i = 0; i < timeline.length; i++) {
+    const seg = timeline[i];
 
-      if (totalDrive > 8) {
-        if (totalDrive > 11) msg += 'Exceeds 11-hour driving limit.\n';
-      }
-
-      if (totalWork > 14) msg += 'Exceeds 14-hour shift limit.\n';
-      document.getElementById('warnings').textContent = msg.trim();
-
-      // Availability tracker
-      const remainingDrive = Math.max(0, 11 - totalDrive);
-      const remainingWork = Math.max(0, 14 - totalWork);
-      const breakDue = totalDrive >= 8 ? "30-min break REQUIRED" : `Break due in ${(8 - totalDrive).toFixed(2)}h`;
-
-      document.getElementById('availability').innerHTML = `
-        <span>Remaining Drive Time: <strong>${remainingDrive.toFixed(2)}h</strong></span><br />
-        <span>Remaining Work Shift: <strong>${remainingWork.toFixed(2)}h</strong></span><br />
-        <span>8hr Break Status: <strong>${breakDue}</strong></span>
-      `;
+    if (seg.type === 'Off Duty' && seg.duration >= 10) {
+      // Reset counters after full break
+      cumulativeDrive = 0;
+      cumulativeWork = 0;
     }
+
+    if (seg.type === 'Driving') {
+      cumulativeDrive += seg.duration;
+      totalDrive += seg.duration;
+    }
+
+    if (seg.type === 'Driving' || seg.type === 'On Duty') {
+      cumulativeWork += seg.duration;
+      totalWork += seg.duration;
+    }
+
+    if (seg.type === 'Off Duty') lastOffDuty = seg.duration;
+  }
+
+  // Split sleeper logic
+  if (split !== 'none') {
+    const [part1, part2] = split.split('-').map(Number);
+    if (lastOffDuty >= part1) {
+      document.getElementById('gainInfo').textContent = `Split break detected. Driver may gain up to ${part2} hrs after completing the second break.`;
+    } else {
+      document.getElementById('gainInfo').textContent = `Need ${part1} hrs break to activate split.`;
+    }
+  } else {
+    document.getElementById('gainInfo').textContent = '';
+  }
+
+  if (cumulativeDrive > 8 && cumulativeDrive <= 11) {
+    msg += '30-min break REQUIRED (8+ hrs driving).\n';
+  } else if (cumulativeDrive > 11) {
+    msg += 'Exceeds 11-hour driving limit.\n';
+  }
+
+  if (cumulativeWork > 14) {
+    msg += 'Exceeds 14-hour shift limit.\n';
+  }
+
+  document.getElementById('warnings').textContent = msg.trim();
+
+  // Availability
+  const remainingDrive = Math.max(0, 11 - cumulativeDrive);
+  const remainingWork = Math.max(0, 14 - cumulativeWork);
+  const breakDue = cumulativeDrive >= 8 ? "30-min break REQUIRED" : `Break due in ${(8 - cumulativeDrive).toFixed(2)}h`;
+
+  document.getElementById('availability').innerHTML = `
+    <span>Remaining Drive Time: <strong>${remainingDrive.toFixed(2)}h</strong></span><br />
+    <span>Remaining Work Shift: <strong>${remainingWork.toFixed(2)}h</strong></span><br />
+    <span>8hr Break Status: <strong>${breakDue}</strong></span>
+  `;
+}
 
     window.onload = renderGrid;
   </script>
